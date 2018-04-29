@@ -7,7 +7,7 @@
     "node": ">=9.2.0"
   },
   "scripts": {
-    "build": "webpack",
+    "build": "webpack --mode production",
     "watch": "webpack -w",
     "test": "jest --no-cache",
     "docker-build": "docker build --tag=kazuhito/$npm_package_name:$npm_package_version --tag=kazuhito/$npm_package_name:latest ."

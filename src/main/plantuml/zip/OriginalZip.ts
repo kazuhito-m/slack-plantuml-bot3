@@ -13,8 +13,6 @@ export default class OriginalZip {
     private que:Que = new Que();
 
     /* private readonly iables */
-    private initflag: boolean;
-    private complete: boolean;
     private window: Array<number>;
     private d_buf: Array<number>;
     private l_buf: Array<number>;
@@ -91,7 +89,6 @@ export default class OriginalZip {
         else if (level > 9) level = 9;
 
         this.compr_level = level;
-        this.initflag = false;
         this.eofile = false;
 
         if (this.state.markd) return;
@@ -134,11 +131,11 @@ export default class OriginalZip {
     private deflate_internal = (buff: Array<number>, off: number, buff_size: number): number => {
         let n;
 
-        if (!this.initflag) {
+        if (!this.state.initflag) {
             this.init_deflate();
-            this.initflag = true;
+            this.state.initflag = true;
             if (this.lookahead == 0) { // empty
-                this.complete = true;
+                this.state.completed();
                 return 0;
             }
         }
@@ -148,7 +145,7 @@ export default class OriginalZip {
             return buff_size;
 
 
-        if (this.complete) return n;
+        if (this.state.complete) return n;
 
         if (this.compr_level <= 3) // optimized for speed
             this.deflate_fast();
@@ -159,7 +156,7 @@ export default class OriginalZip {
             if (this.match_available != 0)
                 this.ct_tally(0, this.window[this.strstart - 1] & 0xff);
             this.flush_block(1);
-            this.complete = true;
+            this.state.completed();
         }
         return n + this.que.qcopy(buff, n + off, buff_size - n);
     }
@@ -182,7 +179,7 @@ export default class OriginalZip {
             this.match_available = 0;
         }
 
-        this.complete = false;
+        this.state.notCompleted();
     }
 
     private deflate_fast = () => {

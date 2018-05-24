@@ -1,9 +1,9 @@
 import DeflateCT from './DeflateCT';
 import DeflateTreeDesc from './DeflateTreeDesc';
 import Constant from './Constant';
-import ZipState from './ZipState';
-import Que from './Que';
-import DeflateState from './DeflateState';
+import ZipState from './state/ZipState';
+import Que from './state/Que';
+import DeflateState from './state/DeflateState';
 
 /**
  * http://s.plantuml.com/synchro.js の関数群をTypeScriptへの移植。

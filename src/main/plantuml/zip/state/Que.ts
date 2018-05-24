@@ -1,5 +1,5 @@
-import DeflateBuffer from "./DeflateBuffer";
-import Constant from "./Constant";
+import DeflateBuffer from "../DeflateBuffer";
+import Constant from "../Constant";
 
 export default class Quw {
 

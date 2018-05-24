@@ -716,7 +716,7 @@ export default class OriginalZip {
             for (let n = 0; n < Constant.WSIZE; n++)
                 this.deflateState.window[n] = this.deflateState.window[n + Constant.WSIZE];
 
-            this.match_start -= Constant.WSIZE;
+            this.deflateState.match_start -= Constant.WSIZE;
             this.deflateState.movePosition(-Constant.WSIZE); /* we now have strstart >= MAX_DIST: */
             this.block_start -= Constant.WSIZE;
 

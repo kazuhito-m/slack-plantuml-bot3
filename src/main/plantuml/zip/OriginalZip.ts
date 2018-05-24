@@ -777,7 +777,7 @@ export default class OriginalZip {
         for (max_blindex = Constant.BL_CODES - 1; max_blindex >= 3; max_blindex--) {
             if (treeState.getItemWithOrder(max_blindex).dl != 0) break;
         }
-        this.heepState._opt_len += 3 * (max_blindex + 1) + 5 + 5 + 4;
+        this.heepState.addOptLength(3 * (max_blindex + 1) + 5 + 5 + 4);
         return max_blindex;
     }
 

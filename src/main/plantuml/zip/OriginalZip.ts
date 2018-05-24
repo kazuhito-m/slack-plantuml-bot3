@@ -318,7 +318,7 @@ export default class OriginalZip {
                     this.match_length = this.lookahead;
 
                 if (this.match_length == Constant.MIN_MATCH &&
-                    this.deflateState.strstart - this.match_start > Constant.TOO_FAR) {
+                    this.deflateState.strstart - prev_match > Constant.TOO_FAR) {
                     this.match_length--;
                 }
             }

@@ -4,13 +4,13 @@ import DeflateTreeDesc from "../DeflateTreeDesc";
 
 export default class HeepState {
 
-    public _bl_count: Array<number>;
+    private _bl_count: Array<number>;
 
     private heap: Array<number>;
     private depth: Array<number>;
 
-    public _opt_len: number = 0;
-    public _static_len: number = 0;
+    private _opt_len: number = 0;
+    private _static_len: number = 0;
 
     constructor() {
         this._bl_count = new Array(Constant.MAX_BITS + 1);

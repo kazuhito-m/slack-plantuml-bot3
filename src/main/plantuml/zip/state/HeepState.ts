@@ -23,7 +23,7 @@ export default class HeepState {
     }
 
     public build_tree = (desc: DeflateTreeDesc) => { // the tree descriptor
-        
+
         const tree: Array<DeflateCT> = desc.dyn_tree;
         const stree = desc.static_tree;
         const elems = desc.elems;
@@ -111,6 +111,11 @@ export default class HeepState {
         this.heap[k] = v;
     }
 
+    private SMALLER = (tree: Array<DeflateCT>, n: number, m: number): boolean => {
+        return tree[n].fc < tree[m].fc ||
+            (tree[n].fc == tree[m].fc && this.depth[n] <= this.depth[m]);
+    }
+
     private gen_bitlen = (desc: DeflateTreeDesc, heap_max:number) => { // the tree descriptor
 
         const tree = desc.dyn_tree;
@@ -120,7 +125,8 @@ export default class HeepState {
         const max_length = desc.max_length;
         const stree = desc.static_tree;
 
-        this.clearBlCounts();
+        for (let bits = 0; bits <= Constant.MAX_BITS; bits++)
+            this.bl_count[bits] = 0;
 
         /* In a first pass, compute the optimal bit lengths (which may
          * overflow in the case of the bit length tree).
@@ -142,7 +148,7 @@ export default class HeepState {
             if (n > max_code)
                 continue; // not a leaf node
 
-            this._bl_count[bits]++;
+            this.bl_count[bits]++;
             let xbits = 0;// extra bits
             if (n >= base)
                 xbits = extra[n - base];
@@ -158,11 +164,11 @@ export default class HeepState {
         // Find the first bit length which could increase:
         do {
             let bits = max_length - 1;
-            while (this._bl_count[bits] == 0)
+            while (this.bl_count[bits] == 0)
                 bits--;
-            this._bl_count[bits]--;		// move one leaf down the tree
-            this._bl_count[bits + 1] += 2;	// move one overflow item as its brother
-            this._bl_count[max_length]--;
+            this.bl_count[bits]--;		// move one leaf down the tree
+            this.bl_count[bits + 1] += 2;	// move one overflow item as its brother
+            this.bl_count[max_length]--;
             /* The brother of the overflow item also moves one step up,
              * but this does not affect bl_count[max_length]
              */
@@ -175,7 +181,7 @@ export default class HeepState {
          * from 'ar' written by Haruhiko Okumura.)
          */
         for (let bits = max_length; bits != 0; bits--) {
-            let n = this._bl_count[bits];
+            let n = this.bl_count[bits];
             while (n != 0) {
                 const m = this.heap[--h];
                 if (m > max_code)
@@ -194,12 +200,12 @@ export default class HeepState {
      * @param tree the tree to decorate.
      * @param max_code largest code with non zero frequency.
      */
-    public gen_codes = (tree: Array<DeflateCT>, max_code: number) => {
+    private gen_codes = (tree: Array<DeflateCT>, max_code: number) => {
         const next_code = new Array(Constant.MAX_BITS + 1); // next code value for each bit length
         let code = 0;		// running code value
 
         for (let bits = 1; bits <= Constant.MAX_BITS; bits++) {
-            code = ((code + this._bl_count[bits - 1]) << 1);
+            code = ((code + this.bl_count[bits - 1]) << 1);
             next_code[bits] = code;
         }
 
@@ -227,16 +233,11 @@ export default class HeepState {
         return res >> 1;
     }
 
-    private SMALLER = (tree: Array<DeflateCT>, n: number, m: number): boolean => {
-        return tree[n].fc < tree[m].fc ||
-            (tree[n].fc == tree[m].fc && this.depth[n] <= this.depth[m]);
-    }
+    // utility methods
 
     public addOptLength = (value:number) => {
         this._opt_len += value;
     }
-
-    // utility methods
 
     public clearBlCounts = () => {
         for (let bits = 0; bits <= this._bl_count.length; bits++)

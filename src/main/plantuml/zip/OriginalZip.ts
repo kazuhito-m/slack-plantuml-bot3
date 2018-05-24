@@ -462,8 +462,7 @@ export default class OriginalZip {
                 this.dist_code[256 + dist++] = code;
         }
 
-        for (let bits = 0; bits <= Constant.MAX_BITS; bits++)
-            this.heepState._bl_count[bits] = 0;
+        this.heepState.clearBlCounts();
         let n = 0;
         while (n <= 143) { this.static_ltree[n++].dl = 8; this.heepState._bl_count[8]++; }
         while (n <= 255) { this.static_ltree[n++].dl = 9; this.heepState._bl_count[9]++; }

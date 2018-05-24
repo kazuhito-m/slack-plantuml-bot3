@@ -3,21 +3,21 @@ import Constant from "./Constant";
 
 export default class Quw {
 
-    private _free_queue: DeflateBuffer | null;
-    private _qhead: DeflateBuffer | null;
-    private _qtail: DeflateBuffer | null;
+    private freeQueue: DeflateBuffer | null;
+    private qhead: DeflateBuffer | null;
+    private qtail: DeflateBuffer | null;
 
-    private _outcnt: number;
-    private _outoff: number;
-    private _outbuf: Array<number>;
+    private outCount: number;
+    private outOff: number;
+    private outBuffer: Array<number>;
 
     constructor() {
-        this._free_queue = null;
-        this._qhead = null;
-        this._qtail = null;
-        this._outbuf = new Array(Constant.OUTBUFSIZ);
-        this._outcnt = 0;
-        this._outoff = 0;
+        this.freeQueue = null;
+        this.qhead = null;
+        this.qtail = null;
+        this.outBuffer = new Array(Constant.OUTBUFSIZ);
+        this.outCount = 0;
+        this.outOff = 0;
     }
 
     public initialize = () => {
@@ -34,64 +34,64 @@ export default class Quw {
         let j: number;
 
         n = 0;
-        while (this._qhead != null && n < buff_size) {
+        while (this.qhead != null && n < buff_size) {
             i = buff_size - n;
-            if (i > this._qhead.len)
-                i = this._qhead.len;
+            if (i > this.qhead.len)
+                i = this.qhead.len;
             //      System.arraycopy(qhead.ptr, qhead.off, buff, off + n, i);
             for (j = 0; j < i; j++)
-                buff[off + n + j] = this._qhead.ptr[this._qhead.off + j];
+                buff[off + n + j] = this.qhead.ptr[this.qhead.off + j];
 
-            this._qhead.off += i;
-            this._qhead.len -= i;
+            this.qhead.off += i;
+            this.qhead.len -= i;
             n += i;
-            if (this._qhead.len == 0) {
-                const p = this._qhead;
-                this._qhead = this._qhead.next;
+            if (this.qhead.len == 0) {
+                const p = this.qhead;
+                this.qhead = this.qhead.next;
                 this.reuse_queue(p);
             }
         }
 
         if (n == buff_size) return n;
 
-        if (this._outoff < this._outcnt) {
+        if (this.outOff < this.outCount) {
             i = buff_size - n;
-            if (i > this._outcnt - this._outoff)
-                i = this._outcnt - this._outoff;
+            if (i > this.outCount - this.outOff)
+                i = this.outCount - this.outOff;
 
 
             // System.arraycopy(outbuf, outoff, buff, off + n, i);
             for (j = 0; j < i; j++)
-                buff[off + n + j] = this._outbuf[this._outoff + j];
-            this._outoff += i;
+                buff[off + n + j] = this.outBuffer[this.outOff + j];
+            this.outOff += i;
             n += i;
-            if (this._outcnt == this._outoff) {
-                this._outcnt = this._outoff = 0;
+            if (this.outCount == this.outOff) {
+                this.outCount = this.outOff = 0;
             }
         }
         return n;
     }
 
     private reuse_queue = (p: DeflateBuffer) => {
-        p.next = this._free_queue;
-        this._free_queue = p;
+        p.next = this.freeQueue;
+        this.freeQueue = p;
     }
 
     public queClear = () => {
-        this._qhead = null;
-        this._outcnt = 0;
-        this._outoff = 0;
+        this.qhead = null;
+        this.outCount = 0;
+        this.outOff = 0;
     }
 
     public nothingQueHead = () => {
-        return this._qhead == null;
+        return this.qhead == null;
     }
 
     public put_short = (w: number) => {
         w &= 0xffff;
-        if (this._outoff + this._outcnt < Constant.OUTBUFSIZ - 2) {
-            this._outbuf[this._outoff + this._outcnt++] = (w & 0xff);
-            this._outbuf[this._outoff + this._outcnt++] = (w >>> 8);
+        if (this.outOff + this.outCount < Constant.OUTBUFSIZ - 2) {
+            this.outBuffer[this.outOff + this.outCount++] = (w & 0xff);
+            this.outBuffer[this.outOff + this.outCount++] = (w >>> 8);
         } else {
             this.put_byte(w & 0xff);
             this.put_byte(w >>> 8);
@@ -99,31 +99,31 @@ export default class Quw {
     }
 
     public put_byte = (c: number) => {
-        this._outbuf[this._outoff + this._outcnt++] = c;
-        if (this._outoff + this._outcnt == Constant.OUTBUFSIZ)
+        this.outBuffer[this.outOff + this.outCount++] = c;
+        if (this.outOff + this.outCount == Constant.OUTBUFSIZ)
             this.qoutbuf();
     }
 
     private qoutbuf = () => {
-        if (this._outcnt != 0) {
+        if (this.outCount != 0) {
             const q = this.new_queue();
-            if (this._qhead == null)
-                this._qhead = this._qtail = q;
+            if (this.qhead == null)
+                this.qhead = this.qtail = q;
             else
-                this._qtail = q;
-            this._qtail.next = q;
-            q.len = this._outcnt - this._outoff;
+                this.qtail = q;
+            this.qtail.next = q;
+            q.len = this.outCount - this.outOff;
             for (let i = 0; i < q.len; i++)
-                q.ptr[i] = this._outbuf[this._outoff + i];
-            this._outcnt = this._outoff = 0;
+                q.ptr[i] = this.outBuffer[this.outOff + i];
+            this.outCount = this.outOff = 0;
         }
     }
 
     private new_queue = (): DeflateBuffer => {
         let p = new DeflateBuffer();
-        if (this._free_queue != null) {
-            p = this._free_queue;
-            this._free_queue = this._free_queue.next;
+        if (this.freeQueue != null) {
+            p = this.freeQueue;
+            this.freeQueue = this.freeQueue.next;
         }
         p.next = null;
         p.len = 0;

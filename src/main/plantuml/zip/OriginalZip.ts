@@ -24,21 +24,21 @@ export default class OriginalZip {
     private d_buf: Array<number>;
     private l_buf: Array<number>;
     private prev: Array<number>;
-    private block_start: number;
-    private ins_h: number;
-    private hash_head: number;
-    private match_available: number;
-    private match_length: number;
-    private prev_length: number;
-    private eofile: boolean;
-    private lookahead: number;
+    private block_start: number = 0;
+    private ins_h: number = 0;
+    private hash_head: number = 0;
+    private match_available: number = 0;
+    private match_length: number = 0;
+    private prev_length: number = 0;
+    private eofile: boolean = false;
+    private lookahead: number = 0;
 
-    private max_chain_length: number;
-    private max_lazy_match: number;
-    private good_match: number;
-    private nice_match: number;
+    private max_chain_length: number = 0;
+    private max_lazy_match: number = 0;
+    private good_match: number = 0;
+    private nice_match: number = 0;
 
-    private compr_level: number;
+    private compr_level: number = 0;
     private dyn_ltree: Array<DeflateCT>;
     private dyn_dtree: Array<DeflateCT>;
     private static_ltree: Array<DeflateCT>;
@@ -51,11 +51,11 @@ export default class OriginalZip {
     private base_length: Array<number>;
     private base_dist: Array<number>;
     private flag_buf: Array<number>;
-    private last_lit: number;
-    private last_dist: number;
-    private last_flags: number;
-    private flags: number;
-    private flag_bit: number;
+    private last_lit: number = 0;
+    private last_dist: number = 0;
+    private last_flags: number = 0;
+    private flags: number = 0;
+    private flag_bit: number = 0;
 
     public deflate = (str: string, level: number): string => {
         this.deflateState.initDeflateData(str);

@@ -126,7 +126,7 @@ export default class HeepState {
         const stree = desc.static_tree;
 
         for (let bits = 0; bits <= Constant.MAX_BITS; bits++)
-            this.bl_count[bits] = 0;
+            this._bl_count[bits] = 0;
 
         /* In a first pass, compute the optimal bit lengths (which may
          * overflow in the case of the bit length tree).
@@ -148,7 +148,7 @@ export default class HeepState {
             if (n > max_code)
                 continue; // not a leaf node
 
-            this.bl_count[bits]++;
+            this._bl_count[bits]++;
             let xbits = 0;// extra bits
             if (n >= base)
                 xbits = extra[n - base];
@@ -164,11 +164,11 @@ export default class HeepState {
         // Find the first bit length which could increase:
         do {
             let bits = max_length - 1;
-            while (this.bl_count[bits] == 0)
+            while (this._bl_count[bits] == 0)
                 bits--;
-            this.bl_count[bits]--;		// move one leaf down the tree
-            this.bl_count[bits + 1] += 2;	// move one overflow item as its brother
-            this.bl_count[max_length]--;
+            this._bl_count[bits]--;		// move one leaf down the tree
+            this._bl_count[bits + 1] += 2;	// move one overflow item as its brother
+            this._bl_count[max_length]--;
             /* The brother of the overflow item also moves one step up,
              * but this does not affect bl_count[max_length]
              */
@@ -181,7 +181,7 @@ export default class HeepState {
          * from 'ar' written by Haruhiko Okumura.)
          */
         for (let bits = max_length; bits != 0; bits--) {
-            let n = this.bl_count[bits];
+            let n = this._bl_count[bits];
             while (n != 0) {
                 const m = this.heap[--h];
                 if (m > max_code)
@@ -200,12 +200,12 @@ export default class HeepState {
      * @param tree the tree to decorate.
      * @param max_code largest code with non zero frequency.
      */
-    private gen_codes = (tree: Array<DeflateCT>, max_code: number) => {
+    public gen_codes = (tree: Array<DeflateCT>, max_code: number) => {
         const next_code = new Array(Constant.MAX_BITS + 1); // next code value for each bit length
         let code = 0;		// running code value
 
         for (let bits = 1; bits <= Constant.MAX_BITS; bits++) {
-            code = ((code + this.bl_count[bits - 1]) << 1);
+            code = ((code + this._bl_count[bits - 1]) << 1);
             next_code[bits] = code;
         }
 
@@ -252,18 +252,13 @@ export default class HeepState {
     public initialSetBlCount = () => {
         this.clearBlCounts();
         let n = 0;
-        while (n <= 143) { n++; this.bl_count[8]++; }
-        while (n <= 255) { n++; this.bl_count[9]++; }
-        while (n <= 279) { n++; this.bl_count[7]++; }
-        while (n <= 287) { n++; this.bl_count[8]++; }
+        while (n <= 143) { n++; this._bl_count[8]++; }
+        while (n <= 255) { n++; this._bl_count[9]++; }
+        while (n <= 279) { n++; this._bl_count[7]++; }
+        while (n <= 287) { n++; this._bl_count[8]++; }
     }
 
     // getter/setter
-
-    public get bl_count():Array<number> {
-        return this._bl_count;
-    }
-
     public get opt_len():number {
         return this._opt_len;
     }

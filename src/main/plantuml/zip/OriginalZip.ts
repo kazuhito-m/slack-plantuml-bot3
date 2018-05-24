@@ -621,7 +621,7 @@ export default class OriginalZip {
         this.treeState.claerAllFc();
 
         this.dyn_ltree[Constant.END_BLOCK].fc = 1;
-        this.heepState._opt_len = this.heepState._static_len = 0;
+        this.heepState.clearLength();
         this.last_lit = 0;
         this.last_dist = 0;
         this.last_flags = 0;

@@ -816,18 +816,18 @@ export default class OriginalZip {
     }
 
     private build_tree = (desc: DeflateTreeDesc) => { // the tree descriptor
-        let tree: Array<DeflateCT> = desc.dyn_tree;
-        let stree = desc.static_tree;
-        let elems = desc.elems;
-        let max_code = -1;	// largest code with non zero frequency
-        let node = elems;	// next internal node of the tree
+        const tree: Array<DeflateCT> = desc.dyn_tree;
+        const stree = desc.static_tree;
+        const elems = desc.elems;
 
         this.heap_len = 0;
         this.heap_max = Constant.HEAP_SIZE;
 
+        let max_code = -1;	// largest code with non zero frequency
         for (let n = 0; n < elems; n++) {
             if (tree[n].fc != 0) {
-                this.heap[++this.heap_len] = max_code = n;
+                max_code = n;
+                this.heap[++this.heap_len] = max_code;
                 this.depth[n] = 0;
             } else
                 tree[n].dl = 0;
@@ -846,7 +846,8 @@ export default class OriginalZip {
         for (let n = this.heap_len >> 1; n >= 1; n--)
             this.pqdownheap(tree, n);
 
-        do {
+            let node = elems;	// next internal node of the tree
+            do {
             const n = this.heap[Constant.SMALLEST];
             this.heap[Constant.SMALLEST] = this.heap[this.heap_len--];
             this.pqdownheap(tree, Constant.SMALLEST);

@@ -4,6 +4,7 @@ import Constant from './Constant';
 import ZipState from './state/ZipState';
 import Que from './state/Que';
 import DeflateState from './state/DeflateState';
+import TreeState from './state/TreeState';
 
 /**
  * http://s.plantuml.com/synchro.js の関数群をTypeScriptへの移植。
@@ -13,6 +14,7 @@ export default class OriginalZip {
     private state:ZipState = new ZipState();
     private que:Que = new Que();
     private deflateState:DeflateState = new DeflateState();
+    private treeState:TreeState = new TreeState();
 
     /* private readonly iables */
     private d_buf: Array<number>;
@@ -40,7 +42,6 @@ export default class OriginalZip {
     private dyn_dtree: Array<DeflateCT>;
     private static_ltree: Array<DeflateCT>;
     private static_dtree: Array<DeflateCT>;
-    private bl_tree: Array<DeflateCT>;
     private l_desc: DeflateTreeDesc;
     private d_desc: DeflateTreeDesc;
     private bl_desc: DeflateTreeDesc;
@@ -96,6 +97,7 @@ export default class OriginalZip {
         this.state.initialize();
         this.que.initialize();
         this.deflateState.initialize();
+        this.treeState.initialize();
 
         this.d_buf = new Array(Constant.DIST_BUFSIZE);
         this.l_buf = new Array(Constant.INBUFSIZ + Constant.INBUF_EXTRA);
@@ -112,9 +114,6 @@ export default class OriginalZip {
         this.static_dtree = new Array(Constant.D_CODES);
         for (i = 0; i < Constant.D_CODES; i++)
             this.static_dtree[i] = new DeflateCT();
-        this.bl_tree = new Array(2 * Constant.BL_CODES + 1);
-        for (i = 0; i < 2 * Constant.BL_CODES + 1; i++)
-            this.bl_tree[i] = new DeflateCT();
         this.l_desc = new DeflateTreeDesc();
         this.d_desc = new DeflateTreeDesc();
         this.bl_desc = new DeflateTreeDesc();
@@ -441,7 +440,7 @@ export default class OriginalZip {
         this.d_desc.max_length = Constant.MAX_BITS;
         this.d_desc.max_code = 0;
 
-        this.bl_desc.dyn_tree = this.bl_tree;
+        this.bl_desc.dyn_tree = this.treeState.bl_tree;
         this.bl_desc.static_tree = null;
         this.bl_desc.extra_bits = Constant.EXTRA_BL_BITS;
         this.bl_desc.extra_base = 0;
@@ -543,7 +542,7 @@ export default class OriginalZip {
         this.build_tree(this.l_desc);
         this.build_tree(this.d_desc);
 
-        const max_blindex = this.build_bl_tree(); // index of last bit length code of non zero freq
+        const max_blindex = this.build_bl_tree(this.treeState); // index of last bit length code of non zero freq
 
 
         let opt_lenb = (this.opt_len + 3 + 7) >> 3;
@@ -585,8 +584,6 @@ export default class OriginalZip {
      * @param length  number of bits.
      */
     private send_bits = (value: number, length: number) => {
-
-
         const BUF_SIZE = 16; // bit size of bi_buf
         if (this.bi_valid > BUF_SIZE - length) {
             this.bi_buf |= (value << this.bi_valid);
@@ -668,7 +665,7 @@ export default class OriginalZip {
         // Initialize the trees.
         for (let n = 0; n < Constant.L_CODES; n++) this.dyn_ltree[n].fc = 0;
         for (let n = 0; n < Constant.D_CODES; n++) this.dyn_dtree[n].fc = 0;
-        for (let n = 0; n < Constant.BL_CODES; n++) this.bl_tree[n].fc = 0;
+        this.treeState.claerAllFc();
 
         this.dyn_ltree[Constant.END_BLOCK].fc = 1;
         this.opt_len = this.static_len = 0;
@@ -680,13 +677,11 @@ export default class OriginalZip {
     }
 
     private send_all_trees = (lcodes: number, dcodes: number, blcodes: number) => { // number of codes for each tree
-
-
         this.send_bits(lcodes - 257, 5); // not +255 as stated in appnote.txt
         this.send_bits(dcodes - 1, 5);
         this.send_bits(blcodes - 4, 4); // not -3 as stated in appnote.txt
         for (let rank = 0; rank < blcodes; rank++) {
-            this.send_bits(this.bl_tree[Constant.BL_ORDER[rank]].dl, 3);
+            this.send_bits(this.treeState.getItemWithOrder(rank).dl, 3);
         }
         this.send_tree(this.dyn_ltree, lcodes - 1);
         this.send_tree(this.dyn_dtree, dcodes - 1);
@@ -709,6 +704,8 @@ export default class OriginalZip {
             min_count = 3;
         }
 
+        const bl_tree = this.treeState.bl_tree;
+
         let prevlen = -1;		// last emitted length
         let count = 0;		// repeat count of the current code
         for (let n = 0; n <= max_code; n++) {
@@ -717,20 +714,20 @@ export default class OriginalZip {
             if (++count < max_count && curlen == nextlen) {
                 continue;
             } else if (count < min_count) {
-                do { this.SEND_CODE(curlen, this.bl_tree); } while (--count != 0);
+                do { this.SEND_CODE(curlen, bl_tree); } while (--count != 0);
             } else if (curlen != 0) {
                 if (curlen != prevlen) {
-                    this.SEND_CODE(curlen, this.bl_tree);
+                    this.SEND_CODE(curlen, bl_tree);
                     count--;
                 }
                 // Assert(count >= 3 && count <= 6, " 3_6?");
-                this.SEND_CODE(Constant.REP_3_6, this.bl_tree);
+                this.SEND_CODE(Constant.REP_3_6, bl_tree);
                 this.send_bits(count - 3, 2);
             } else if (count <= 10) {
-                this.SEND_CODE(Constant.REPZ_3_10, this.bl_tree);
+                this.SEND_CODE(Constant.REPZ_3_10, bl_tree);
                 this.send_bits(count - 3, 3);
             } else {
-                this.SEND_CODE(Constant.REPZ_11_138, this.bl_tree);
+                this.SEND_CODE(Constant.REPZ_11_138, bl_tree);
                 this.send_bits(count - 11, 7);
             }
             count = 0;
@@ -990,65 +987,17 @@ export default class OriginalZip {
         }
     }
 
-    private build_bl_tree(): number {
-        this.scan_tree(this.dyn_ltree, this.l_desc.max_code);
-        this.scan_tree(this.dyn_dtree, this.d_desc.max_code);
+    private build_bl_tree(treeState:TreeState): number {
+        treeState.scan_tree(this.dyn_ltree, this.l_desc.max_code);
+        treeState.scan_tree(this.dyn_dtree, this.d_desc.max_code);
 
         this.build_tree(this.bl_desc);
         let max_blindex: number;
         for (max_blindex = Constant.BL_CODES - 1; max_blindex >= 3; max_blindex--) {
-            if (this.bl_tree[Constant.BL_ORDER[max_blindex]].dl != 0) break;
+            if (treeState.getItemWithOrder(max_blindex).dl != 0) break;
         }
         this.opt_len += 3 * (max_blindex + 1) + 5 + 5 + 4;
         return max_blindex;
-    }
-
-    /**
-     * scan_tree.
-     * @param tree the tree to be scanned.
-     * @param max_code and its largest code of non zero frequency.
-     */
-    private scan_tree(tree: Array<DeflateCT>, max_code: number) {
-
-        let max_count = 7;		// max repeat count
-        let min_count = 4;		// min repeat count
-        let nextlen = tree[0].dl;	// length of next code
-        if (nextlen == 0) {
-            max_count = 138;
-            min_count = 3;
-        }
-        tree[max_code + 1].dl = 0xffff; // guard
-
-        let prevlen = -1;		// last emitted length
-        let count = 0;		// repeat count of the current code
-        for (let n = 0; n <= max_code; n++) {
-            const curlen = nextlen; // length of current code
-            nextlen = tree[n + 1].dl;
-            if (++count < max_count && curlen == nextlen)
-                continue;
-            else if (count < min_count)
-                this.bl_tree[curlen].fc += count;
-            else if (curlen != 0) {
-                if (curlen != prevlen)
-                    this.bl_tree[curlen].fc++;
-                this.bl_tree[Constant.REP_3_6].fc++;
-            } else if (count <= 10)
-                this.bl_tree[Constant.REPZ_3_10].fc++;
-            else
-                this.bl_tree[Constant.REPZ_11_138].fc++;
-            count = 0;
-            prevlen = curlen;
-            if (nextlen == 0) {
-                max_count = 138;
-                min_count = 3;
-            } else if (curlen == nextlen) {
-                max_count = 6;
-                min_count = 3;
-            } else {
-                max_count = 7;
-                min_count = 4;
-            }
-        }
     }
 
 }

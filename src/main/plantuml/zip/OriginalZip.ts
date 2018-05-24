@@ -47,8 +47,6 @@ export default class OriginalZip {
     private bl_desc: DeflateTreeDesc;
     private bl_count: Array<number>;
     private heap: Array<number>;
-    private heap_len: number;
-    private heap_max: number;
     private depth: Array<number>;
     private length_code: Array<number>;
     private dist_code: Array<number>;
@@ -534,7 +532,6 @@ export default class OriginalZip {
      */
     private flush_block = (eof: number) => {
 
-
         let stored_len = this.deflateState.strstart - this.block_start;	// length of input block
         this.flag_buf[this.last_flags] = this.flags; // Save the flags for the last 8 items
 
@@ -820,21 +817,21 @@ export default class OriginalZip {
         const stree = desc.static_tree;
         const elems = desc.elems;
 
-        this.heap_len = 0;
-        this.heap_max = Constant.HEAP_SIZE;
+        let heap_len = 0;
+        let heap_max = Constant.HEAP_SIZE;
 
         let max_code = -1;	// largest code with non zero frequency
         for (let n = 0; n < elems; n++) {
             if (tree[n].fc != 0) {
                 max_code = n;
-                this.heap[++this.heap_len] = max_code;
+                this.heap[++heap_len] = max_code;
                 this.depth[n] = 0;
             } else
                 tree[n].dl = 0;
         }
 
-        while (this.heap_len < 2) {
-            let xnew = this.heap[++this.heap_len] = (max_code < 2 ? ++max_code : 0);
+        while (heap_len < 2) {
+            let xnew = this.heap[++heap_len] = (max_code < 2 ? ++max_code : 0);
             tree[xnew].fc = 1;
             this.depth[xnew] = 0;
             this.opt_len--;
@@ -843,19 +840,19 @@ export default class OriginalZip {
         }
         desc.max_code = max_code;
 
-        for (let n = this.heap_len >> 1; n >= 1; n--)
-            this.pqdownheap(tree, n);
+        for (let n = heap_len >> 1; n >= 1; n--)
+            this.pqdownheap(tree, n, heap_len);
 
-            let node = elems;	// next internal node of the tree
-            do {
+        let node = elems;	// next internal node of the tree
+        do {
             const n = this.heap[Constant.SMALLEST];
-            this.heap[Constant.SMALLEST] = this.heap[this.heap_len--];
-            this.pqdownheap(tree, Constant.SMALLEST);
+            this.heap[Constant.SMALLEST] = this.heap[heap_len--];
+            this.pqdownheap(tree, Constant.SMALLEST, heap_len);
 
             const m = this.heap[Constant.SMALLEST];  // m = node of next least frequency
 
-            this.heap[--this.heap_max] = n;
-            this.heap[--this.heap_max] = m;
+            this.heap[--heap_max] = n;
+            this.heap[--heap_max] = m;
 
             tree[node].fc = tree[n].fc + tree[m].fc;
             if (this.depth[n] > this.depth[m] + 1)
@@ -865,13 +862,13 @@ export default class OriginalZip {
             tree[n].dl = tree[m].dl = node;
 
             this.heap[Constant.SMALLEST] = node++;
-            this.pqdownheap(tree, Constant.SMALLEST);
+            this.pqdownheap(tree, Constant.SMALLEST, heap_len);
 
-        } while (this.heap_len >= 2);
+        } while (heap_len >= 2);
 
-        this.heap[--this.heap_max] = this.heap[Constant.SMALLEST];
+        this.heap[--heap_max] = this.heap[Constant.SMALLEST];
 
-        this.gen_bitlen(desc);
+        this.gen_bitlen(desc, heap_max);
 
         this.gen_codes(tree, max_code);
     }
@@ -881,19 +878,18 @@ export default class OriginalZip {
      * @param tree the tree to restore.
      * @param k node to move down.
      */
-    private pqdownheap = (tree: Array<DeflateCT>, k: number) => {
+    private pqdownheap = (tree: Array<DeflateCT>, k: number , heap_len:number) => {
         let v = this.heap[k];
         let j = k << 1;	// left son of k
 
-        while (j <= this.heap_len) {
+        while (j <= heap_len) {
             // Set j to the smallest of the two sons:
-            if (j < this.heap_len &&
+            if (j < heap_len &&
                 this.SMALLER(tree, this.heap[j + 1], this.heap[j]))
                 j++;
 
             // Exit if v is smaller than both sons
-            if (this.SMALLER(tree, v, this.heap[j]))
-                break;
+            if (this.SMALLER(tree, v, this.heap[j])) break;
 
             // Exchange v with the smallest son
             this.heap[k] = this.heap[j];
@@ -909,7 +905,7 @@ export default class OriginalZip {
             (tree[n].fc == tree[m].fc && this.depth[n] <= this.depth[m]);
     }
 
-    private gen_bitlen = (desc: DeflateTreeDesc) => { // the tree descriptor
+    private gen_bitlen = (desc: DeflateTreeDesc, heap_max:number) => { // the tree descriptor
 
         const tree = desc.dyn_tree;
         const extra = desc.extra_bits;
@@ -924,11 +920,11 @@ export default class OriginalZip {
         /* In a first pass, compute the optimal bit lengths (which may
          * overflow in the case of the bit length tree).
          */
-        tree[this.heap[this.heap_max]].dl = 0; // root of the heap
+        tree[this.heap[heap_max]].dl = 0; // root of the heap
 
         let overflow = 0;// number of elements with bit length too large
         let h: number;
-        for (h = this.heap_max + 1; h < Constant.HEAP_SIZE; h++) {
+        for (h = heap_max + 1; h < Constant.HEAP_SIZE; h++) {
             const n = this.heap[h];
             let bits = tree[tree[n].dl].dl + 1;
             if (bits > max_length) {

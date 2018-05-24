@@ -56,12 +56,9 @@ export default class OriginalZip {
     private last_flags: number;
     private flags: number;
     private flag_bit: number;
-    private deflate_data: string;
-    private deflate_pos: number;
 
     public deflate = (str: string, level: number): string => {
-        this.deflate_data = str;
-        this.deflate_pos = 0;
+        this.deflateState.initDeflateData(str);
         if (level == undefined) level = Constant.DEFAULT_LEVEL;
         this.deflate_start(level);
 
@@ -683,7 +680,7 @@ export default class OriginalZip {
         this.deflateState.clearPosition();
         this.block_start = 0;
 
-        this.lookahead = this.read_buff(this.deflateState.window, 0, 2 * Constant.WSIZE);
+        this.lookahead = this.deflateState.read_buff(0, 2 * Constant.WSIZE);
         if (this.lookahead <= 0) {
             this.eofile = true;
             this.lookahead = 0;
@@ -698,13 +695,6 @@ export default class OriginalZip {
         for (let j = 0; j < Constant.MIN_MATCH - 1; j++) {
             this.ins_h = ((this.ins_h << Constant.H_SHIFT) ^ (this.deflateState.window[j] & 0xff)) & Constant.HASH_MASK;
         }
-    }
-
-    private read_buff = (buff: Array<number>, offset: number, n: number): number => {
-        let i: number;
-        for (i = 0; i < n && this.deflate_pos < this.deflate_data.length; i++)
-            buff[offset + i] = this.deflate_data.charCodeAt(this.deflate_pos++) & 0xff;
-        return i;
     }
 
     private fill_window = () => {
@@ -731,7 +721,7 @@ export default class OriginalZip {
             more += Constant.WSIZE;
         }
         if (!this.eofile) {
-            const n = this.read_buff(this.deflateState.window, this.deflateState.strstart + this.lookahead, more);
+            const n = this.deflateState.read_buff(this.deflateState.strstart + this.lookahead, more);
             if (n <= 0)
                 this.eofile = true;
             else

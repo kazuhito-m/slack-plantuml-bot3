@@ -6,8 +6,8 @@ export default class DeflateState {
     private _strstart: number = 0;
     private _match_start: number;
 
-    private deflate_data: string = "";
-    private deflate_pos: number = 0;
+    public deflate_data:string | undefined;
+    public deflate_pos: number = 0;
 
     constructor() {
         this._window = new Array(Constant.WINDOW_SIZE);
@@ -24,6 +24,7 @@ export default class DeflateState {
     }
 
     public read_buff = (offset: number, n: number): number => {
+        if (!this.deflate_data) return 0;
         const buff = this._window;
         let i: number;
         for (i = 0; i < n && this.deflate_pos < this.deflate_data.length; i++)

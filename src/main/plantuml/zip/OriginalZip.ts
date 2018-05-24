@@ -1,21 +1,19 @@
 import DeflateCT from './DeflateCT';
-import DeflateBuffer from './DeflateBuffer';
 import DeflateTreeDesc from './DeflateTreeDesc';
 import Constant from './Constant';
+import ZipState from './ZipState';
+import Que from './Que';
 
 /**
  * http://s.plantuml.com/synchro.js の関数群をTypeScriptへの移植。
  */
 export default class OriginalZip {
 
+    private state:ZipState = new ZipState();
+    private que:Que = new Que();
+
     /* private readonly iables */
-    private free_queue: DeflateBuffer | null;
-    private qhead: DeflateBuffer | null;
-    private qtail: DeflateBuffer;
     private initflag: boolean;
-    private outbuf: Array<number>;
-    private outcnt: number;
-    private outoff: number;
     private complete: boolean;
     private window: Array<number>;
     private d_buf: Array<number>;
@@ -96,10 +94,11 @@ export default class OriginalZip {
         this.initflag = false;
         this.eofile = false;
 
-        if (this.outbuf != null) return;
+        if (this.state.markd) return;
 
-        this.free_queue = this.qhead = null;
-        this.outbuf = new Array(Constant.OUTBUFSIZ);
+        this.state.initialize();
+        this.que.initialize();
+
         this.window = new Array(Constant.WINDOW_SIZE);
         this.d_buf = new Array(Constant.DIST_BUFSIZE);
         this.l_buf = new Array(Constant.INBUFSIZ + Constant.INBUF_EXTRA);
@@ -135,7 +134,6 @@ export default class OriginalZip {
     private deflate_internal = (buff: Array<number>, off: number, buff_size: number): number => {
         let n;
 
-
         if (!this.initflag) {
             this.init_deflate();
             this.initflag = true;
@@ -145,7 +143,8 @@ export default class OriginalZip {
             }
         }
 
-        if ((n = this.qcopy(buff, off, buff_size)) == buff_size)
+        n = this.que.qcopy(buff, off, buff_size);
+        if (n == buff_size)
             return buff_size;
 
 
@@ -162,7 +161,7 @@ export default class OriginalZip {
             this.flush_block(1);
             this.complete = true;
         }
-        return n + this.qcopy(buff, n + off, buff_size - n);
+        return n + this.que.qcopy(buff, n + off, buff_size - n);
     }
 
     private init_deflate = () => {
@@ -172,9 +171,7 @@ export default class OriginalZip {
         this.ct_init();
         this.lm_init();
 
-        this.qhead = null;
-        this.outcnt = 0;
-        this.outoff = 0;
+        this.que.queClear();
 
         if (this.compr_level <= 3) {
             this.prev_length = Constant.MIN_MATCH - 1;
@@ -188,53 +185,8 @@ export default class OriginalZip {
         this.complete = false;
     }
 
-    private qcopy = (buff: Array<number>, off: number, buff_size: number): number => {
-        let n: number;
-        let i: number;
-        let j: number;
-
-        n = 0;
-        while (this.qhead != null && n < buff_size) {
-            i = buff_size - n;
-            if (i > this.qhead.len)
-                i = this.qhead.len;
-            //      System.arraycopy(qhead.ptr, qhead.off, buff, off + n, i);
-            for (j = 0; j < i; j++)
-                buff[off + n + j] = this.qhead.ptr[this.qhead.off + j];
-
-            this.qhead.off += i;
-            this.qhead.len -= i;
-            n += i;
-            if (this.qhead.len == 0) {
-                var p;
-                p = this.qhead;
-                this.qhead = this.qhead.next;
-                this.reuse_queue(p);
-            }
-        }
-
-        if (n == buff_size) return n;
-
-        if (this.outoff < this.outcnt) {
-            i = buff_size - n;
-            if (i > this.outcnt - this.outoff)
-                i = this.outcnt - this.outoff;
-
-
-            // System.arraycopy(outbuf, outoff, buff, off + n, i);
-            for (j = 0; j < i; j++)
-                buff[off + n + j] = this.outbuf[this.outoff + j];
-            this.outoff += i;
-            n += i;
-            if (this.outcnt == this.outoff) {
-                this.outcnt = this.outoff = 0;
-            }
-        }
-        return n;
-    }
-
     private deflate_fast = () => {
-        while (this.lookahead != 0 && this.qhead == null) {
+        while (this.lookahead != 0 && this.que.nothingQueHead()) {
             let flush; // set if current block must be flushed
 
             this.INSERT_STRING();
@@ -359,7 +311,7 @@ export default class OriginalZip {
 
 
     private deflate_better = () => {
-        while (this.lookahead != 0 && this.qhead == null) {
+        while (this.lookahead != 0 && this.que.nothingQueHead()) {
             this.INSERT_STRING();
 
             const prev_match = this.match_start;
@@ -606,18 +558,16 @@ export default class OriginalZip {
 
             this.send_bits((Constant.STORED_BLOCK << 1) + eof, 3);  /* send block type */
             this.bi_windup();		 /* align on byte boundary */
-            this.put_short(stored_len);
-            this.put_short(~stored_len);
+            this.que.put_short(stored_len);
+            this.que.put_short(~stored_len);
 
             for (i = 0; i < stored_len; i++)
-                this.put_byte(this.window[this.block_start + i]);
+                this.que.put_byte(this.window[this.block_start + i]);
 
         } else if (static_lenb == opt_lenb) {
             this.send_bits((Constant.STATIC_TREES << 1) + eof, 3);
             this.compress_block(this.static_ltree, this.static_dtree);
         } else {
-
-
             this.send_bits((Constant.DYN_TREES << 1) + eof, 3);
             this.send_all_trees(this.l_desc.max_code + 1,
                 this.d_desc.max_code + 1,
@@ -641,7 +591,7 @@ export default class OriginalZip {
         const BUF_SIZE = 16; // bit size of bi_buf
         if (this.bi_valid > BUF_SIZE - length) {
             this.bi_buf |= (value << this.bi_valid);
-            this.put_short(this.bi_buf);
+            this.que.put_short(this.bi_buf);
             this.bi_buf = (value >> (BUF_SIZE - this.bi_valid));
             this.bi_valid += length - BUF_SIZE;
         } else {
@@ -652,31 +602,12 @@ export default class OriginalZip {
 
     private bi_windup = () => {
         if (this.bi_valid > 8) {
-            this.put_short(this.bi_buf);
+            this.que.put_short(this.bi_buf);
         } else if (this.bi_valid > 0) {
-            this.put_byte(this.bi_buf);
+            this.que.put_byte(this.bi_buf);
         }
         this.bi_buf = 0;
         this.bi_valid = 0;
-    }
-
-    private put_short = (w: number) => {
-
-
-        w &= 0xffff;
-        if (this.outoff + this.outcnt < Constant.OUTBUFSIZ - 2) {
-            this.outbuf[this.outoff + this.outcnt++] = (w & 0xff);
-            this.outbuf[this.outoff + this.outcnt++] = (w >>> 8);
-        } else {
-            this.put_byte(w & 0xff);
-            this.put_byte(w >>> 8);
-        }
-    }
-
-    private put_byte = (c: number) => {
-        this.outbuf[this.outoff + this.outcnt++] = c;
-        if (this.outoff + this.outcnt == Constant.OUTBUFSIZ)
-            this.qoutbuf();
     }
 
     /**
@@ -817,32 +748,6 @@ export default class OriginalZip {
             }
         }
     }
-    private qoutbuf = () => {
-        if (this.outcnt != 0) {
-            const q = this.new_queue();
-            if (this.qhead == null)
-                this.qhead = this.qtail = q;
-            else
-                this.qtail = this.qtail.next = q;
-            q.len = this.outcnt - this.outoff;
-            for (let i = 0; i < q.len; i++)
-                q.ptr[i] = this.outbuf[this.outoff + i];
-            this.outcnt = this.outoff = 0;
-        }
-    }
-
-    private new_queue = (): DeflateBuffer => {
-        let p = new DeflateBuffer();
-        if (this.free_queue != null) {
-            p = this.free_queue;
-            this.free_queue = this.free_queue.next;
-        }
-        p.next = null;
-        p.len = 0;
-        p.off = 0;
-        return p;
-    }
-
 
     private lm_init = () => {
         /* Initialize the hash table. */
@@ -880,11 +785,6 @@ export default class OriginalZip {
         for (i = 0; i < n && this.deflate_pos < this.deflate_data.length; i++)
             buff[offset + i] = this.deflate_data.charCodeAt(this.deflate_pos++) & 0xff;
         return i;
-    }
-
-    private reuse_queue = (p: DeflateBuffer) => {
-        p.next = this.free_queue;
-        this.free_queue = p;
     }
 
     private fill_window = () => {
@@ -1090,7 +990,6 @@ export default class OriginalZip {
             }
         }
     }
-
 
     private build_bl_tree(): number {
         this.scan_tree(this.dyn_ltree, this.l_desc.max_code);

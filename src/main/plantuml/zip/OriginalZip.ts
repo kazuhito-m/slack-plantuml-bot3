@@ -464,10 +464,16 @@ export default class OriginalZip {
 
         this.heepState.clearBlCounts();
         let n = 0;
-        while (n <= 143) { this.static_ltree[n++].dl = 8; this.heepState._bl_count[8]++; }
-        while (n <= 255) { this.static_ltree[n++].dl = 9; this.heepState._bl_count[9]++; }
-        while (n <= 279) { this.static_ltree[n++].dl = 7; this.heepState._bl_count[7]++; }
-        while (n <= 287) { this.static_ltree[n++].dl = 8; this.heepState._bl_count[8]++; }
+        while (n <= 143) { this.static_ltree[n++].dl = 8; }
+        while (n <= 255) { this.static_ltree[n++].dl = 9; }
+        while (n <= 279) { this.static_ltree[n++].dl = 7; }
+        while (n <= 287) { this.static_ltree[n++].dl = 8; }
+
+        n = 0;
+        while (n <= 143) { n++; this.heepState._bl_count[8]++; }
+        while (n <= 255) { n++; this.heepState._bl_count[9]++; }
+        while (n <= 279) { n++; this.heepState._bl_count[7]++; }
+        while (n <= 287) { n++; this.heepState._bl_count[8]++; }
 
         this.heepState.gen_codes(this.static_ltree, Constant.L_CODES + 1);
 

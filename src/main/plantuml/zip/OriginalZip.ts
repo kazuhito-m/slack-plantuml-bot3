@@ -30,7 +30,6 @@ export default class OriginalZip {
     private match_available: number;
     private match_length: number;
     private prev_length: number;
-    private match_start: number;
     private eofile: boolean;
     private lookahead: number;
 
@@ -188,7 +187,7 @@ export default class OriginalZip {
             if (this.match_length >= Constant.MIN_MATCH) {
 
                 flush = this.ct_tally(
-                    this.deflateState.strstart - this.match_start,
+                    this.deflateState.strstart - this.deflateState.match_start,
                     this.match_length - Constant.MIN_MATCH
                 );
                 this.lookahead -= this.match_length;
@@ -282,7 +281,7 @@ export default class OriginalZip {
             scanp = strendp - Constant.MAX_MATCH;
 
             if (len > best_len) {
-                this.match_start = cur_match;
+                defs.match_start = cur_match;
                 best_len = len;
                 if (Constant.FULL_SEARCH) {
                     if (len >= Constant.MAX_MATCH) break;
@@ -304,7 +303,7 @@ export default class OriginalZip {
         while (this.lookahead != 0 && this.que.nothingQueHead()) {
             this.INSERT_STRING();
 
-            const prev_match = this.match_start;
+            const prev_match = this.deflateState.match_start;
 
             this.prev_length = this.match_length;
             this.match_length = Constant.MIN_MATCH - 1;

@@ -4,9 +4,11 @@ export default class DeflateState {
 
     private _window: Array<number>;
     private _strstart: number = 0;
+    private _match_start: number;
 
     constructor() {
         this._window = new Array(Constant.WINDOW_SIZE);
+        this._match_start = 0;
     }
 
     public initialize = () => {
@@ -41,6 +43,14 @@ export default class DeflateState {
 
     public get strstart() {
         return this._strstart;
+    }
+
+    public get match_start() {
+        return this._match_start;
+    }
+
+    public set match_start(value:number) {
+        this._match_start = value;
     }
 
 }

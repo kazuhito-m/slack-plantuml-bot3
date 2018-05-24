@@ -9,64 +9,64 @@ import Constant from './Constant';
 export default class OriginalZip {
 
     /* private readonly iables */
-    private free_queue: DeflateBuffer | null;
-    private qhead: DeflateBuffer | null;
-    private qtail: DeflateBuffer;
-    private initflag: boolean;
-    private outbuf: Array<number>;
-    private outcnt: number;
-    private outoff: number;
-    private complete: boolean;
-    private window: Array<number>;
-    private d_buf: Array<number>;
-    private l_buf: Array<number>;
-    private prev: Array<number>;
-    private bi_buf: number;
-    private bi_valid: number;
-    private block_start: number;
-    private ins_h: number;
-    private hash_head: number;
-    private match_available: number;
-    private match_length: number;
-    private prev_length: number;
-    private strstart: number;
-    private match_start: number;
-    private eofile: boolean;
-    private lookahead: number;
+    private free_queue: DeflateBuffer | null  = null;
+    private qhead: DeflateBuffer | null = null;
+    private qtail: DeflateBuffer = new DeflateBuffer();
+    private initflag: boolean = false;
+    private outbuf: Array<number> = new Array<number>();
+    private outcnt: number = 0;
+    private outoff: number = 0;
+    private complete: boolean = false;
+    private window: Array<number> = new Array<number>();
+    private d_buf: Array<number> = new Array<number>();
+    private l_buf: Array<number> = new Array<number>();
+    private prev: Array<number> = new Array<number>();
+    private bi_buf: number = 0;
+    private bi_valid: number = 0;
+    private block_start: number = 0;
+    private ins_h: number = 0;
+    private hash_head: number = 0;
+    private match_available: number = 0;
+    private match_length: number = 0;
+    private prev_length: number = 0;
+    private strstart: number = 0;
+    private match_start: number = 0;
+    private eofile: boolean = false;
+    private lookahead: number = 0;
 
-    private max_chain_length: number;
-    private max_lazy_match: number;
-    private good_match: number;
-    private nice_match: number;
+    private max_chain_length: number = 0;
+    private max_lazy_match: number = 0;
+    private good_match: number = 0;
+    private nice_match: number = 0;
 
-    private compr_level: number;
-    private dyn_ltree: Array<DeflateCT>;
-    private dyn_dtree: Array<DeflateCT>;
-    private static_ltree: Array<DeflateCT>;
-    private static_dtree: Array<DeflateCT>;
-    private bl_tree: Array<DeflateCT>;
-    private l_desc: DeflateTreeDesc;
-    private d_desc: DeflateTreeDesc;
-    private bl_desc: DeflateTreeDesc;
-    private bl_count: Array<number>;
-    private heap: Array<number>;
-    private heap_len: number;
-    private heap_max: number;
-    private depth: Array<number>;
-    private length_code: Array<number>;
-    private dist_code: Array<number>;
-    private base_length: Array<number>;
-    private base_dist: Array<number>;
-    private flag_buf: Array<number>;
-    private last_lit: number;
-    private last_dist: number;
-    private last_flags: number;
-    private flags: number;
-    private flag_bit: number;
-    private opt_len: number;
-    private static_len: number;
-    private deflate_data: string;
-    private deflate_pos: number;
+    private compr_level: number = 0;
+    private dyn_ltree: Array<DeflateCT> = new Array<DeflateCT>();
+    private dyn_dtree: Array<DeflateCT> = new Array<DeflateCT>();
+    private static_ltree: Array<DeflateCT> = new Array<DeflateCT>();
+    private static_dtree: Array<DeflateCT> = new Array<DeflateCT>();
+    private bl_tree: Array<DeflateCT> = new Array<DeflateCT>();
+    private l_desc: DeflateTreeDesc = new DeflateTreeDesc();
+    private d_desc: DeflateTreeDesc = new DeflateTreeDesc();
+    private bl_desc: DeflateTreeDesc = new DeflateTreeDesc();
+    private bl_count: Array<number> = Array<number>();
+    private heap: Array<number> = Array<number>();
+    private heap_len: number = 0;
+    private heap_max: number = 0;
+    private depth: Array<number> = Array<number>();
+    private length_code: Array<number> = Array<number>();
+    private dist_code: Array<number> = Array<number>();
+    private base_length: Array<number> = Array<number>();
+    private base_dist: Array<number> = Array<number>();
+    private flag_buf: Array<number> = Array<number>();
+    private last_lit: number = 0;
+    private last_dist: number = 0;
+    private last_flags: number = 0;
+    private flags: number = 0;
+    private flag_bit: number = 0;
+    private opt_len: number = 0;
+    private static_len: number = 0;
+    private deflate_data: string = "";
+    private deflate_pos: number = 0;
 
     public deflate = (str: string, level: number): string => {
         this.deflate_data = str;
@@ -920,7 +920,7 @@ export default class OriginalZip {
     }
 
     private build_tree = (desc: DeflateTreeDesc) => { // the tree descriptor
-        let tree: Array<DeflateCT> = desc.dyn_tree;
+        let tree: Array<DeflateCT> = desc.dyn_tree == null ? new Array<DeflateCT>() : desc.dyn_tree;
         let stree = desc.static_tree;
         let elems = desc.elems;
         let max_code = -1;	// largest code with non zero frequency
@@ -1014,8 +1014,8 @@ export default class OriginalZip {
 
     private gen_bitlen = (desc: DeflateTreeDesc) => { // the tree descriptor
 
-        const tree = desc.dyn_tree;
-        const extra = desc.extra_bits;
+        const tree: Array<DeflateCT> = desc.dyn_tree == null ? new Array<DeflateCT>() : desc.dyn_tree;
+        const extra: Array<number> = desc.extra_bits == null ? new Array<number>() : desc.extra_bits;
         const base = desc.extra_base;
         const max_code = desc.max_code;
         const max_length = desc.max_length;

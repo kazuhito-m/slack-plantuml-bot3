@@ -131,30 +131,4 @@ export default class Quw {
         return p;
     }
 
-    // getter/setter
-
-    public get free_queue(): DeflateBuffer | null {
-        return this._free_queue;
-    }
-
-    public set free_queue(value: DeflateBuffer | null) {
-        this._free_queue = value;
-    }
-
-    public get qhead(): DeflateBuffer | null {
-        return this._qhead;
-    }
-
-    public set qhead(value: DeflateBuffer | null) {
-        this._qhead = value;
-    }
-
-    public get outoff(): number {
-        return this._outoff;
-    }
-
-    public set outoff(value: number) {
-        this._outoff = value;
-    }
-
 }

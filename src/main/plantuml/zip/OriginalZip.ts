@@ -507,7 +507,7 @@ export default class OriginalZip {
             && this.block_start >= 0) {
             let i;
 
-            this.send_bits((Constant.STORED_BLOCK << 1) + eof, 3);  /* send block type */
+            this.send_bits((Constant.STORED_BLOCK << 1) + eof, 3, this.que);  /* send block type */
             this.bi_windup();		 /* align on byte boundary */
             this.que.put_short(stored_len);
             this.que.put_short(~stored_len);
@@ -516,10 +516,10 @@ export default class OriginalZip {
                 this.que.put_byte(this.deflateState.window[this.block_start + i]);
 
         } else if (static_lenb == opt_lenb) {
-            this.send_bits((Constant.STATIC_TREES << 1) + eof, 3);
+            this.send_bits((Constant.STATIC_TREES << 1) + eof, 3, this.que);
             this.compress_block(this.static_ltree, this.static_dtree);
         } else {
-            this.send_bits((Constant.DYN_TREES << 1) + eof, 3);
+            this.send_bits((Constant.DYN_TREES << 1) + eof, 3, this.que);
             this.send_all_trees(this.l_desc.max_code + 1,
                 this.d_desc.max_code + 1,
                 max_blindex + 1);
@@ -536,11 +536,11 @@ export default class OriginalZip {
      * @param value value to send. 
      * @param length  number of bits.
      */
-    private send_bits = (value: number, length: number) => {
+    private send_bits = (value: number, length: number, que:Que) => {
         const BUF_SIZE = 16; // bit size of bi_buf
         if (this.bi_valid > BUF_SIZE - length) {
             this.bi_buf |= (value << this.bi_valid);
-            this.que.put_short(this.bi_buf);
+            que.put_short(this.bi_buf);
             this.bi_buf = (value >> (BUF_SIZE - this.bi_valid));
             this.bi_valid += length - BUF_SIZE;
         } else {
@@ -591,7 +591,7 @@ export default class OriginalZip {
                     lc -= this.base_length[code];
 
 
-                    this.send_bits(lc, extra); // send the extra length bits
+                    this.send_bits(lc, extra, this.que); // send the extra length bits
                 }
                 dist = this.d_buf[dx++];
                 code = this.D_CODE(dist);
@@ -601,7 +601,7 @@ export default class OriginalZip {
                     dist -= this.base_dist[code];
 
 
-                    this.send_bits(dist, extra);   // send the extra distance bits
+                    this.send_bits(dist, extra, this.que);   // send the extra distance bits
                 }
             } // literal or match pair ?
             flag >>= 1;
@@ -611,7 +611,7 @@ export default class OriginalZip {
     }
 
     private SEND_CODE = (c: number, tree: Array<DeflateCT>) => {
-        this.send_bits(tree[c].fc, tree[c].dl);
+        this.send_bits(tree[c].fc, tree[c].dl, this.que);
     }
 
     private init_block = () => {
@@ -630,11 +630,11 @@ export default class OriginalZip {
     }
 
     private send_all_trees = (lcodes: number, dcodes: number, blcodes: number) => { // number of codes for each tree
-        this.send_bits(lcodes - 257, 5); // not +255 as stated in appnote.txt
-        this.send_bits(dcodes - 1, 5);
-        this.send_bits(blcodes - 4, 4); // not -3 as stated in appnote.txt
+        this.send_bits(lcodes - 257, 5, this.que); // not +255 as stated in appnote.txt
+        this.send_bits(dcodes - 1, 5, this.que);
+        this.send_bits(blcodes - 4, 4, this.que); // not -3 as stated in appnote.txt
         for (let rank = 0; rank < blcodes; rank++) {
-            this.send_bits(this.treeState.getItemWithOrder(rank).dl, 3);
+            this.send_bits(this.treeState.getItemWithOrder(rank).dl, 3, this.que);
         }
         this.send_tree(this.dyn_ltree, lcodes - 1);
         this.send_tree(this.dyn_dtree, dcodes - 1);
@@ -675,13 +675,13 @@ export default class OriginalZip {
                 }
                 // Assert(count >= 3 && count <= 6, " 3_6?");
                 this.SEND_CODE(Constant.REP_3_6, bl_tree);
-                this.send_bits(count - 3, 2);
+                this.send_bits(count - 3, 2, this.que);
             } else if (count <= 10) {
                 this.SEND_CODE(Constant.REPZ_3_10, bl_tree);
-                this.send_bits(count - 3, 3);
+                this.send_bits(count - 3, 3, this.que);
             } else {
                 this.SEND_CODE(Constant.REPZ_11_138, bl_tree);
-                this.send_bits(count - 11, 7);
+                this.send_bits(count - 11, 7, this.que);
             }
             count = 0;
             prevlen = curlen;

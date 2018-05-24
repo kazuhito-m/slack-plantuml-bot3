@@ -59,14 +59,14 @@ export default class Quw {
             if (i > this.outCount - this.outOff)
                 i = this.outCount - this.outOff;
 
-
             // System.arraycopy(outbuf, outoff, buff, off + n, i);
             for (j = 0; j < i; j++)
                 buff[off + n + j] = this.outBuffer[this.outOff + j];
             this.outOff += i;
             n += i;
             if (this.outCount == this.outOff) {
-                this.outCount = this.outOff = 0;
+                this.outCount = 0;
+                this.outOff = 0;
             }
         }
         return n;

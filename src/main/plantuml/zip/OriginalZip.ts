@@ -3,6 +3,7 @@ import DeflateTreeDesc from './DeflateTreeDesc';
 import Constant from './Constant';
 import ZipState from './ZipState';
 import Que from './Que';
+import DeflateState from './DeflateState';
 
 /**
  * http://s.plantuml.com/synchro.js の関数群をTypeScriptへの移植。
@@ -11,9 +12,9 @@ export default class OriginalZip {
 
     private state:ZipState = new ZipState();
     private que:Que = new Que();
+    private deflateState:DeflateState = new DeflateState();
 
     /* private readonly iables */
-    private window: Array<number>;
     private d_buf: Array<number>;
     private l_buf: Array<number>;
     private prev: Array<number>;
@@ -25,7 +26,6 @@ export default class OriginalZip {
     private match_available: number;
     private match_length: number;
     private prev_length: number;
-    private strstart: number;
     private match_start: number;
     private eofile: boolean;
     private lookahead: number;
@@ -95,8 +95,8 @@ export default class OriginalZip {
 
         this.state.initialize();
         this.que.initialize();
+        this.deflateState.initialize();
 
-        this.window = new Array(Constant.WINDOW_SIZE);
         this.d_buf = new Array(Constant.DIST_BUFSIZE);
         this.l_buf = new Array(Constant.INBUFSIZ + Constant.INBUF_EXTRA);
         this.prev = new Array(1 << Constant.BITS);
@@ -154,7 +154,7 @@ export default class OriginalZip {
 
         if (this.lookahead == 0) {
             if (this.match_available != 0)
-                this.ct_tally(0, this.window[this.strstart - 1] & 0xff);
+                this.ct_tally(0, this.deflateState.positionCodeOffset(-1));
             this.flush_block(1);
             this.state.completed();
         }
@@ -189,7 +189,7 @@ export default class OriginalZip {
             this.INSERT_STRING();
 
             if (this.hash_head != Constant.NIL &&
-                this.strstart - this.hash_head <= Constant.MAX_DIST) {
+                this.deflateState.strstart - this.hash_head <= Constant.MAX_DIST) {
                 this.match_length = this.longest_match(this.hash_head);
                 if (this.match_length > this.lookahead)
                     this.match_length = this.lookahead;
@@ -197,7 +197,7 @@ export default class OriginalZip {
             if (this.match_length >= Constant.MIN_MATCH) {
 
                 flush = this.ct_tally(
-                    this.strstart - this.match_start,
+                    this.deflateState.strstart - this.match_start,
                     this.match_length - Constant.MIN_MATCH
                 );
                 this.lookahead -= this.match_length;
@@ -205,25 +205,25 @@ export default class OriginalZip {
                 if (this.match_length <= this.max_lazy_match) {
                     this.match_length--; // string at strstart already in hash table
                     do {
-                        this.strstart++;
+                        this.deflateState.moveNextStartPostion();
                         this.INSERT_STRING();
                     } while (--this.match_length != 0);
-                    this.strstart++;
+                    this.deflateState.moveNextStartPostion();
                 } else {
-                    this.strstart += this.match_length;
+                    this.deflateState.movePosition(this.match_length);
                     this.match_length = 0;
-                    this.ins_h = this.window[this.strstart] & 0xff;
-                    this.ins_h = ((this.ins_h << Constant.H_SHIFT) ^ (this.window[this.strstart + 1] & 0xff)) & Constant.HASH_MASK;
+                    this.ins_h = this.deflateState.firstPositionCode();
+                    this.ins_h = ((this.ins_h << Constant.H_SHIFT) ^ this.deflateState.positionCodeOffset(1)) & Constant.HASH_MASK;
                 }
             } else {
                 /* No match, output a literal byte */
-                flush = this.ct_tally(0, this.window[this.strstart] & 0xff);
+                flush = this.ct_tally(0, this.deflateState.firstPositionCode());
                 this.lookahead--;
-                this.strstart++;
+                this.deflateState.moveNextStartPostion();   
             }
             if (flush) {
                 this.flush_block(0);
-                this.block_start = this.strstart;
+                this.block_start = this.deflateState.strstart;
             }
 
             while (this.lookahead < Constant.MIN_LOOKAHEAD && !this.eofile)
@@ -233,11 +233,11 @@ export default class OriginalZip {
 
     private INSERT_STRING = () => {
         this.ins_h = ((this.ins_h << Constant.H_SHIFT)
-            ^ (this.window[this.strstart + Constant.MIN_MATCH - 1] & 0xff))
-            & Constant.HASH_MASK;
+            ^ this.deflateState.positionCodeOffset(Constant.MIN_MATCH - 1)
+        ) & Constant.HASH_MASK;
         this.hash_head = this.head1(this.ins_h);
-        this.prev[this.strstart & Constant.WMASK] = this.hash_head;
-        this.head2(this.ins_h, this.strstart);
+        this.prev[this.deflateState.strstart & Constant.WMASK] = this.hash_head;
+        this.head2(this.ins_h, this.deflateState.strstart);
     }
     private head1 = (i: number) => {
         return this.prev[Constant.WSIZE + i];
@@ -248,16 +248,16 @@ export default class OriginalZip {
 
     private longest_match = (cur_match: number) => {
         let chain_length: number = this.max_chain_length; // max hash chain length
-        let scanp: number = this.strstart; // current string
+        let scanp: number = this.deflateState.strstart; // current string
         let matchp: number;		// matched string
         let len: number;		// length of current match
         let best_len: number = this.prev_length;	// best match length so far
 
-        let limit: number = (this.strstart > Constant.MAX_DIST ? this.strstart - Constant.MAX_DIST : Constant.NIL);
+        let limit: number = (this.deflateState.strstart > Constant.MAX_DIST ? this.deflateState.strstart - Constant.MAX_DIST : Constant.NIL);
 
-        const strendp: number = this.strstart + Constant.MAX_MATCH;
-        let scan_end1 = this.window[scanp + best_len - 1];
-        let scan_end = this.window[scanp + best_len];
+        const strendp: number = this.deflateState.strstart + Constant.MAX_MATCH;
+        let scan_end1 = this.deflateState.window[scanp + best_len - 1];
+        let scan_end = this.deflateState.window[scanp + best_len];
 
         if (this.prev_length >= this.good_match)
             chain_length >>= 2;
@@ -265,24 +265,26 @@ export default class OriginalZip {
         do {
             matchp = cur_match;
 
-            if (this.window[matchp + best_len] != scan_end ||
-                this.window[matchp + best_len - 1] != scan_end1 ||
-                this.window[matchp] != this.window[scanp] ||
-                this.window[++matchp] != this.window[scanp + 1]) {
+            const defs: DeflateState = this.deflateState;
+
+            if (defs.window[matchp + best_len] != scan_end ||
+                defs.window[matchp + best_len - 1] != scan_end1 ||
+                defs.window[matchp] != defs.window[scanp] ||
+                defs.window[++matchp] != defs.window[scanp + 1]) {
                 continue;
             }
 
             scanp += 2;
             matchp++;
 
-            do { } while (this.window[++scanp] == this.window[++matchp] &&
-                this.window[++scanp] == this.window[++matchp] &&
-                this.window[++scanp] == this.window[++matchp] &&
-                this.window[++scanp] == this.window[++matchp] &&
-                this.window[++scanp] == this.window[++matchp] &&
-                this.window[++scanp] == this.window[++matchp] &&
-                this.window[++scanp] == this.window[++matchp] &&
-                this.window[++scanp] == this.window[++matchp] &&
+            do { } while (defs.window[++scanp] == defs.window[++matchp] &&
+                defs.window[++scanp] == defs.window[++matchp] &&
+                defs.window[++scanp] == defs.window[++matchp] &&
+                defs.window[++scanp] == defs.window[++matchp] &&
+                defs.window[++scanp] == defs.window[++matchp] &&
+                defs.window[++scanp] == defs.window[++matchp] &&
+                defs.window[++scanp] == defs.window[++matchp] &&
+                defs.window[++scanp] == defs.window[++matchp] &&
                 scanp < strendp);
 
             len = Constant.MAX_MATCH - (strendp - scanp);
@@ -297,8 +299,8 @@ export default class OriginalZip {
                     if (len >= this.nice_match) break;
                 }
 
-                scan_end1 = this.window[scanp + best_len - 1];
-                scan_end = this.window[scanp + best_len];
+                scan_end1 = defs.window[scanp + best_len - 1];
+                scan_end = defs.window[scanp + best_len];
             }
         } while ((cur_match = this.prev[cur_match & Constant.WMASK]) > limit
             && --chain_length != 0);
@@ -318,14 +320,14 @@ export default class OriginalZip {
 
             if (this.hash_head != Constant.NIL &&
                 this.prev_length < this.max_lazy_match &&
-                this.strstart - this.hash_head <= Constant.MAX_DIST) {
+                this.deflateState.strstart - this.hash_head <= Constant.MAX_DIST) {
 
                 this.match_length = this.longest_match(this.hash_head);
                 if (this.match_length > this.lookahead)
                     this.match_length = this.lookahead;
 
                 if (this.match_length == Constant.MIN_MATCH &&
-                    this.strstart - this.match_start > Constant.TOO_FAR) {
+                    this.deflateState.strstart - this.match_start > Constant.TOO_FAR) {
                     this.match_length--;
                 }
             }
@@ -333,32 +335,32 @@ export default class OriginalZip {
                 this.match_length <= this.prev_length) {
                 let flush; // set if current block must be flushed
 
-                flush = this.ct_tally(this.strstart - 1 - prev_match,
+                flush = this.ct_tally(this.deflateState.strstart - 1 - prev_match,
                     this.prev_length - Constant.MIN_MATCH);
 
                 this.lookahead -= this.prev_length - 1;
                 this.prev_length -= 2;
                 do {
-                    this.strstart++;
+                    this.deflateState.moveNextStartPostion();
                     this.INSERT_STRING();
                 } while (--this.prev_length != 0);
                 this.match_available = 0;
                 this.match_length = Constant.MIN_MATCH - 1;
-                this.strstart++;
+                this.deflateState.moveNextStartPostion();
                 if (flush) {
                     this.flush_block(0);
-                    this.block_start = this.strstart;
+                    this.block_start = this.deflateState.strstart;
                 }
             } else if (this.match_available != 0) {
-                if (this.ct_tally(0, this.window[this.strstart - 1] & 0xff)) {
+                if (this.ct_tally(0,this.deflateState.positionCodeOffset(-1))) {
                     this.flush_block(0);
-                    this.block_start = this.strstart;
+                    this.block_start = this.deflateState.strstart;
                 }
-                this.strstart++;
+                this.deflateState.moveNextStartPostion();
                 this.lookahead--;
             } else {
                 this.match_available = 1;
-                this.strstart++;
+                this.deflateState.moveNextStartPostion();
                 this.lookahead--;
             }
 
@@ -398,7 +400,7 @@ export default class OriginalZip {
         }
         if (this.compr_level > 2 && (this.last_lit & 0xfff) == 0) {
             let out_length = this.last_lit * 8;
-            const in_length = this.strstart - this.block_start;
+            const in_length = this.deflateState.strstart - this.block_start;
 
             for (let dcode = 0; dcode < Constant.D_CODES; dcode++) {
                 out_length += this.dyn_dtree[dcode].fc * (5 + Constant.EXTRA_D_BITS[dcode]);
@@ -534,7 +536,7 @@ export default class OriginalZip {
     private flush_block = (eof: number) => {
 
 
-        let stored_len = this.strstart - this.block_start;	// length of input block
+        let stored_len = this.deflateState.strstart - this.block_start;	// length of input block
         this.flag_buf[this.last_flags] = this.flags; // Save the flags for the last 8 items
 
 
@@ -559,7 +561,7 @@ export default class OriginalZip {
             this.que.put_short(~stored_len);
 
             for (i = 0; i < stored_len; i++)
-                this.que.put_byte(this.window[this.block_start + i]);
+                this.que.put_byte(this.deflateState.window[this.block_start + i]);
 
         } else if (static_lenb == opt_lenb) {
             this.send_bits((Constant.STATIC_TREES << 1) + eof, 3);
@@ -757,10 +759,10 @@ export default class OriginalZip {
         if (!Constant.FULL_SEARCH) this.nice_match = tableItem.nice_length;
         this.max_chain_length = tableItem.max_chain;
 
-        this.strstart = 0;
+        this.deflateState.clearPosition();
         this.block_start = 0;
 
-        this.lookahead = this.read_buff(this.window, 0, 2 * Constant.WSIZE);
+        this.lookahead = this.read_buff(this.deflateState.window, 0, 2 * Constant.WSIZE);
         if (this.lookahead <= 0) {
             this.eofile = true;
             this.lookahead = 0;
@@ -773,7 +775,7 @@ export default class OriginalZip {
 
         this.ins_h = 0;
         for (let j = 0; j < Constant.MIN_MATCH - 1; j++) {
-            this.ins_h = ((this.ins_h << Constant.H_SHIFT) ^ (this.window[j] & 0xff)) & Constant.HASH_MASK;
+            this.ins_h = ((this.ins_h << Constant.H_SHIFT) ^ (this.deflateState.window[j] & 0xff)) & Constant.HASH_MASK;
         }
     }
 
@@ -785,16 +787,16 @@ export default class OriginalZip {
     }
 
     private fill_window = () => {
-        let more = Constant.WINDOW_SIZE - this.lookahead - this.strstart;
+        let more = Constant.WINDOW_SIZE - this.lookahead - this.deflateState.strstart;
 
         if (more == -1) {
             more--;
-        } else if (this.strstart >= Constant.WSIZE + Constant.MAX_DIST) {
+        } else if (this.deflateState.strstart >= Constant.WSIZE + Constant.MAX_DIST) {
             for (let n = 0; n < Constant.WSIZE; n++)
-                this.window[n] = this.window[n + Constant.WSIZE];
+                this.deflateState.window[n] = this.deflateState.window[n + Constant.WSIZE];
 
             this.match_start -= Constant.WSIZE;
-            this.strstart -= Constant.WSIZE; /* we now have strstart >= MAX_DIST: */
+            this.deflateState.movePosition(-Constant.WSIZE); /* we now have strstart >= MAX_DIST: */
             this.block_start -= Constant.WSIZE;
 
             for (let n = 0; n < Constant.HASH_SIZE; n++) {
@@ -808,7 +810,7 @@ export default class OriginalZip {
             more += Constant.WSIZE;
         }
         if (!this.eofile) {
-            const n = this.read_buff(this.window, this.strstart + this.lookahead, more);
+            const n = this.read_buff(this.deflateState.window, this.deflateState.strstart + this.lookahead, more);
             if (n <= 0)
                 this.eofile = true;
             else

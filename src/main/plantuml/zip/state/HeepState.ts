@@ -250,7 +250,7 @@ export default class HeepState {
     }
 
     public initialSetBlCount = () => {
-        // this.clearBlCounts();
+        this.clearBlCounts();
         let n = 0;
         while (n <= 143) { n++; this._bl_count[8]++; }
         while (n <= 255) { n++; this._bl_count[9]++; }
